@@ -1,0 +1,208 @@
+#!/bin/bash
+
+# Autor: RetrKill0
+# Revisado: Copilot 
+# Data 25/11/2024
+# Descrição: Atualizador de scripts universal
+
+# Lista de scripts 
+declare -A scripts=(
+    ["script1.sh"]="0.2"
+    ["script2.sh"]="0.2"
+    ["script3.sh"]="0.2"
+    ["script4.sh"]="0.1"
+    ["script5.sh"]="0.2"
+)
+
+# Diretório onde os scripts estão localizados
+SCRIPT_DIR="/scripts"
+LOG_FILE="/var/log/script_updater.log"
+
+# Função para fazer backup do script
+backup_script() {
+    local script_name=$1
+    local backup_name="${SCRIPT_DIR}/${script_name}.bkp.$(date +%d%m%Y-%H%M)"
+    if cp "${SCRIPT_DIR}/${script_name}" "${backup_name}"; then
+        echo "Backup do ${script_name} criado: ${backup_name}" | tee -a "$LOG_FILE"
+    else
+        echo "Erro ao criar backup do ${script_name}" | tee -a "$LOG_FILE"
+        exit 1
+    fi
+}
+
+# Função para atualizar o script
+update_script() {
+    local script_name=$1
+    local new_content=$2
+
+    if echo "$new_content" > "${SCRIPT_DIR}/${script_name}"; then
+        chmod 755 "${SCRIPT_DIR}/${script_name}"
+        echo "Script ${script_name} atualizado." | tee -a "$LOG_FILE"
+    else
+        echo "Erro ao atualizar o script ${script_name}" | tee -a "$LOG_FILE"
+        exit 1
+    fi
+}
+
+# Função para ler a versão do script
+get_script_version() {
+    local script_name=$1
+    grep -E "^# Version: " "${SCRIPT_DIR}/${script_name}" | awk '{print $3}'
+}
+
+# Função para extrair o conteúdo do script a partir do próprio script de atualização
+extract_script_content() {
+    local script_name=$1
+    awk "/^# inicio ${script_name}/,/^# fim ${script_name}/" "$0" | sed '1d;$d'
+}
+
+# Função para verificar a versão do conteúdo do script
+check_content_version() {
+    local content=$1
+    echo "$content" | grep -E "^# Version: " | awk '{print $3}'
+}
+
+# Função para validar e criar o arquivo de cron (ele só add, não substitui)
+# Pode copiar a base para outro arquivo parecido com ele
+validade_cron() {
+    local cron_file="/etc/cron.d/script1"
+    local cron_content=$(extract_script_content "cron")
+
+    if [ -f "$cron_file" ]; then
+        echo "O arquivo de cron já existe em ${cron_file}."
+    else
+        echo "O arquivo de cron não existe. Criando em ${cron_file}..."
+        if echo "$cron_content" > "$cron_file"; then
+            chmod 644 "$cron_file"
+            echo "Arquivo de cron criado com sucesso." | tee -a "$LOG_FILE"
+        else
+            echo "Erro ao criar o arquivo de cron." | tee -a "$LOG_FILE"
+            exit 1
+        fi
+    fi
+}
+
+#verifica e criar o arquivo de cron (add aqui para executar a função, tbm para outros scripts)
+validade_cron
+
+# Loop através dos scripts na lista
+for script_name in "${!scripts[@]}"; do
+    new_content=$(extract_script_content "${script_name}")
+    content_version=$(check_content_version "$new_content")
+    listed_version=${scripts[$script_name]}
+
+    if [ -z "$content_version" ]; then
+        echo "Não foi possível encontrar a versão no conteúdo do script ${script_name}. Por favor, corrija isso antes de continuar."
+        continue
+    fi
+
+    if [ "$content_version" != "$listed_version" ]; then
+        echo "A versão listada (${listed_version}) e a versão do conteúdo (${content_version}) do script ${script_name} não correspondem. Por favor, corrija isso antes de continuar."
+        continue
+    fi
+
+    if [ -f "${SCRIPT_DIR}/${script_name}" ]; then
+        current_version=$(get_script_version "${script_name}")
+
+        if [ "$current_version" != "$listed_version" ]; then
+            echo "O script ${script_name} tem uma versão diferente (atual: ${current_version}, listada: ${listed_version})."
+            read -p "Deseja atualizar o script ${script_name} da versão ${current_version} para ${listed_version}? (y/N): " response
+            if [[ "$response" =~ ^[Yy]$ ]]; then
+                backup_script "${script_name}"
+                update_script "${script_name}" "$new_content"
+            else
+                echo "Pulando atualização do script ${script_name}."
+            fi
+        else
+            echo "O script ${script_name} já está na versão correta (${listed_version})."
+        fi
+    else
+        echo "O script ${script_name} não foi encontrado no diretório ${SCRIPT_DIR}."
+        read -p "Deseja criar o script ${script_name} com a versão ${listed_version}? (y/N): " response
+        if [[ "$response" =~ ^[Yy]$ ]]; then
+            update_script "${script_name}" "$new_content"
+        else
+            echo "Pulando criação do script ${script_name}."
+        fi
+    fi
+done
+
+exit 0
+
+###### add aqui os scripts/arquivos que será adicionado #####
+# inicio cron
+# Arquivo de cron para OARQUIVO
+0 17 * * 6 root /scripts/script1.sh
+30 22 * * * root /scripts/script2.sh
+0 */6 * * * root /scripts/script3.sh
+0 17 * * 6 root /scripts/script4.sh
+# fim cron
+
+#/////////////////////////////////////////////////////#
+
+
+##### área de scripts/arquivos que serão adicionado ou atualizados #####
+#---------------------------------------------------#
+#Exemplo
+# inicio script id 1
+#!/bin/bash
+# Version: 0.2
+#echo "Este é o script 1" Manter
+#--------- Conteúdo ---------INICIO#
+#//////////////#
+#--------- Conteúdo --------- FIM#
+# fim script id 1
+#---------------------------------------------------#
+
+#/////////////////////////////////////////////////////#
+
+# inicio script1.sh
+#!/bin/bash
+# Version: 0.2
+echo "script1.sh"
+
+CONTEUDO 
+# fim script1.sh
+
+#/////////////////////////////////////////////////////#
+
+# inicio script2.sh
+#!/bin/bash
+# Version: 0.2
+echo "script2.sh"
+
+CONTEUDO 
+# fim script2.sh
+
+#/////////////////////////////////////////////////////#
+
+# inicio script3.sh
+#!/bin/bash
+# Version: 0.2
+echo "script3.sh"
+
+CONTEUDO 
+# fim script3.sh
+
+#/////////////////////////////////////////////////////#
+
+# inicio script4.sh
+#!/bin/bash
+# Version: 0.1
+echo "script4.sh"
+
+CONTEUDO 
+# fim script4.sh
+
+#/////////////////////////////////////////////////////#
+
+# inicio script5.sh
+#!/bin/bash
+# Version: 0.2
+echo "script5.sh"
+
+CONTEUDO 
+# fim script5.sh
+
+#/////////////////////////////////////////////////////#
+
