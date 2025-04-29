@@ -1,6 +1,8 @@
 # codes
 ---
 
+Pasta Unity possui scripts antigos que fiz em projetos antigos
+
 Atualizador Universal de Scripts
 
 Como usar:
